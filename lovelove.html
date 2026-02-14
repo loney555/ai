@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✨ 爱心下落 · 终极验证版 ✨</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        .canvas-wrapper {
+            border-radius: 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08), 0 0 0 2px #ffb6c1;
+            overflow: hidden;
+            resize: both;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 800px;
+            height: 600px;
+            background-color: #ffffff;
+            cursor: default;
+        }
+        .loading-tip {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #fff0f5;
+            color: #b3416d;
+            padding: 10px 24px;
+            border-radius: 60px;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.3);
+            border: 1px solid #ffb6c1;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+        }
+        .loading-tip.hide {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-tip" id="loadingTip">🔍 正在加载您的图片... 请查看控制台(F12)</div>
+    <div class="canvas-wrapper">
+        <canvas id="magicCanvas" width="800" height="600"></canvas>
+    </div>
+
+    <script>
+        (function() {
+            // ==================== 您的本地图片路径 ====================
+            const imageSources = {
+                img1: './images/a.png',
+                img2: './images/b.png',
+                img3: './images/c.png',
+                img4: './images/d.png'
+            };
+            // =====================================================
+
+            const canvas = document.getElementById('magicCanvas');
+            const ctx = canvas.getContext('2d');
+            const loadingTip = document.getElementById('loadingTip');
+
+            const loadedImages = { img1: null, img2: null, img3: null, img4: null };
+            let allImagesLoaded = false;
+            let particles = [];
+            let animationId = null;
+
+            const rand = (min, max) => Math.random() * (max - min) + min;
+            const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+            // 加载单张图片（详细日志）
+            function loadImage(src, key) {
+                return new Promise((resolve) => {
+                    console.log(`⏳ 开始加载 ${key}: ${src}`);
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.src = src;
+                    img.onload = () => {
+                        console.log(`✅ 加载成功 ${key}:`, img);
+                        resolve(img);
+                    };
+                    img.onerror = (err) => {
+                        console.error(`❌ 加载失败 ${key}: ${src}`, err);
+                        // 创建彩色占位图
+                        const fallbackCanvas = document.createElement('canvas');
+                        fallbackCanvas.width = 120;
+                        fallbackCanvas.height = 120;
+                        const fCtx = fallbackCanvas.getContext('2d');
+                        fCtx.fillStyle = `hsl(${randInt(0,360)},80%,80%)`;
+                        fCtx.fillRect(0,0,120,120);
+                        fCtx.strokeStyle = '#b3416d';
+                        fCtx.lineWidth = 6;
+                        fCtx.strokeRect(2,2,116,116);
+                        fCtx.font = 'bold 20px sans-serif';
+                        fCtx.fillStyle = '#b3416d';
+                        fCtx.textAlign = 'center';
+                        fCtx.textBaseline = 'middle';
+                        fCtx.fillText('✨',60,60);
+                        const fallbackImg = new Image();
+                        fallbackImg.src = fallbackCanvas.toDataURL();
+                        fallbackImg.onload = () => {
+                            console.log(`🟡 使用占位图代替 ${key}`);
+                            resolve(fallbackImg);
+                        };
+                    };
+                });
+            }
+
+            async function loadAllImages() {
+                try {
+                    const [img1, img2, img3, img4] = await Promise.all([
+                        loadImage(imageSources.img1, 'img1(a.png)'),
+                        loadImage(imageSources.img2, 'img2(b.png)'),
+                        loadImage(imageSources.img3, 'img3(c.png)'),
+                        loadImage(imageSources.img4, 'img4(d.png)')
+                    ]);
+                    loadedImages.img1 = img1;
+                    loadedImages.img2 = img2;
+                    loadedImages.img3 = img3;
+                    loadedImages.img4 = img4;
+                    allImagesLoaded = true;
+                    loadingTip.classList.add('hide');
+                    initParticles();
+                    startAnimation();
+                } catch (e) {
+                    console.error('加载流程异常', e);
+                }
+            }
+
+            function initParticles() {
+                particles = [];
+                const imgs = [loadedImages.img1, loadedImages.img2, loadedImages.img3];
+                imgs.forEach((img, idx) => {
+                    for (let i = 0; i < randInt(7,9); i++) {
+                        const scale = rand(0.35,1.2);
+                        const w = 80 * scale;
+                        const h = (img.naturalHeight || 100) * (w / (img.naturalWidth || 100));
+                        particles.push({
+                            img, type: idx,
+                            x: rand(0, canvas.width), y: rand(-canvas.height, 0),
+                            speedY: rand(1.2,3.5), speedX: rand(-0.8,0.8),
+                            w, h, opacity: rand(0.5,1),
+                            angle: rand(0, Math.PI*2), rotationSpeed: rand(-0.025,0.025)
+                        });
+                    }
+                });
+            }
+
+            function resetParticle(p) {
+                p.x = rand(10, canvas.width-10);
+                p.y = -p.h - rand(20,150);
+                p.speedY = rand(1.5,4);
+                p.speedX = rand(-1,1);
+                p.opacity = rand(0.45,1);
+                const newScale = rand(0.35,1.2);
+                const baseW = p.img.naturalWidth || 100;
+                const baseH = p.img.naturalHeight || 100;
+                p.w = 80 * newScale;
+                p.h = baseH * (p.w / baseW);
+                p.angle = rand(0, Math.PI*2);
+                p.rotationSpeed = rand(-0.03,0.03);
+            }
+
+            function updateParticles() {
+                for (let p of particles) {
+                    p.x += p.speedX;
+                    p.y += p.speedY;
+                    p.angle += p.rotationSpeed;
+                    const margin = 50;
+                    if (p.y - p.h > canvas.height + margin || p.x + p.w < -margin || p.x - p.w > canvas.width + margin) {
+                        resetParticle(p);
+                    }
+                    if (p.x < 10 && p.speedX < 0) p.speedX *= -0.8;
+                    if (p.x > canvas.width-10 && p.speedX > 0) p.speedX *= -0.8;
+                }
+            }
+
+            function drawScene() {
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+
+                for (let p of particles) {
+                    ctx.save();
+                    ctx.globalAlpha = p.opacity;
+                    ctx.translate(p.x + p.w/2, p.y + p.h/2);
+                    ctx.rotate(p.angle);
+                    ctx.drawImage(p.img, -p.w/2, -p.h/2, p.w, p.h);
+                    ctx.restore();
+                }
+
+                // 文字 Love You
+                ctx.save();
+                ctx.shadowColor = '#ffb6c1';
+                ctx.shadowBlur = 24;
+                ctx.font = '500 44px "Comic Sans MS", cursive';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#b3416d';
+                ctx.fillText('Love You', 200, 300);
+                ctx.font = '28px "Segoe UI Emoji"';
+                ctx.fillText('✨', 110, 250);
+                ctx.fillText('✨', 280, 350);
+                ctx.restore();
+
+                // 图片4
+                if (loadedImages.img4) {
+                    const img4 = loadedImages.img4;
+                    const dw = 130;
+                    const dh = (img4.naturalHeight / img4.naturalWidth) * dw || 130;
+                    ctx.save();
+                    ctx.shadowColor = '#ffb6c1';
+                    ctx.shadowBlur = 20;
+                    ctx.shadowOffsetX = 2;
+                    ctx.shadowOffsetY = 2;
+                    ctx.drawImage(img4, 620, 400, dw, dh);
+                    ctx.restore();
+                    ctx.save();
+                    ctx.strokeStyle = '#b3416d';
+                    ctx.lineWidth = 1.5;
+                    ctx.shadowBlur = 16;
+                    ctx.shadowColor = '#ffb6c1';
+                    ctx.setLineDash([6,8]);
+                    ctx.strokeRect(617, 397, dw+6, dh+6);
+                    ctx.restore();
+                }
+            }
+
+            function animate() {
+                if (!allImagesLoaded) {
+                    ctx.clearRect(0,0,canvas.width,canvas.height);
+                    ctx.fillStyle = '#fff0f5';
+                    ctx.fillRect(0,0,canvas.width,canvas.height);
+                    ctx.font = '24px sans-serif';
+                    ctx.fillStyle = '#b3416d';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('loading... 请查看控制台(F12)', 400, 300);
+                    animationId = requestAnimationFrame(animate);
+                    return;
+                }
+                updateParticles();
+                drawScene();
+                animationId = requestAnimationFrame(animate);
+            }
+
+            function startAnimation() {
+                if (animationId) cancelAnimationFrame(animationId);
+                animate();
+            }
+
+            loadAllImages();
+        })();
+    </script>
+</body>
+</html>
